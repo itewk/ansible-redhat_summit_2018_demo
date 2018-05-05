@@ -1,0 +1,39 @@
+---
+- name: Apache HTTPD | Install required packages
+  package:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - firewalld
+    - git
+    - httpd
+
+- name: Apache HTTPD | Enable firewall
+  service:
+    name: firewalld
+    state: started
+    enabled: yes
+
+- name: Apache HTTPD | Configure firewall
+  firewalld:
+    service: "{{ item }}"
+    permanent: True
+    immediate: True
+    state: enabled
+  with_items:
+    - http
+    - https
+
+- name: Apache HTTPD | Enable and Start
+  service:
+    name: httpd
+    state: started
+    enabled: yes
+
+- name: Apache HTTPD | Deploy website
+  git:
+    repo: "{{ apache_httpd_website_repo }}"
+    version: "{{ apache_httpd_website_repo_version | default('master') }}"
+    dest: "/var/www/html"
+    force: True
+  when: apache_httpd_website_repo is defined

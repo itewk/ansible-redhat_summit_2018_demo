@@ -1,0 +1,8 @@
+---
+- name: Deploy Apache HTTPD
+  hosts: all
+  roles:
+    - role: apache_httpd
+      vars:
+        source: "foo"
+      
