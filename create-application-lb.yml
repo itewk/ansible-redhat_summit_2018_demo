@@ -21,6 +21,7 @@
       with_items:
         - boto3
         - botocore
+      become: True
 
     - name: AWS | Create Application LB | Set facts
       set_fact:
