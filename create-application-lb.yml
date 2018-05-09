@@ -1,0 +1,74 @@
+---
+- name: AWS | Create Application LB
+  gather_facts: False
+  hosts: localhost
+  tasks:
+    - name: AWS | Create Application LB | Verify parameters
+      local_action:
+        module: assert
+        that:
+          - aws_region is defined
+          - aws_access_key is defined
+          - aws_secret_key is defined
+          - aws_vpc_id is defined
+          - service_name is defined
+
+    - name: AWS | Create Application LB | Install required modules
+      local_action:
+        module: pip
+        name: "{{ item }}"
+        state: latest
+      with_items:
+        - boto3
+        - botocore
+
+    - name: AWS | Create Application LB | Set facts
+      set_fact:
+        aws_lb_name: "{{ service_name | regex_replace('[^a-zA-Z0-9-]', '-') }}"
+        aws_target_group_name: "{{ service_name | regex_replace('[^a-zA-Z0-9-]', '-') }}"
+
+    - name: AWS | Create Application LB | Create Target Group
+      local_action:
+        module: elb_target_group
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        region: "{{ aws_region }}"
+        vpc_id: "{{ aws_vpc_id }}"
+        name: "{{ aws_target_group_name }}"
+        protocol: http
+        port: 80
+        target_type: ip
+        state: present
+
+    - name: AWS | Create Application LB | Create LB
+      local_action:
+        module: elb_application_lb
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        region: "{{ aws_region }}"
+        name: "{{ aws_lb_name }}"
+        security_groups:
+          - http
+        subnets:
+          - subnet-00ba5573e47c9325a
+          - subnet-06cfe7f030c32f644
+        listeners:
+          - Protocol: HTTP
+            Port: 80
+            DefaultActions:
+              - Type: forward
+                TargetGroupName: "{{ aws_target_group_name }}"
+        state: present
+
+    - name: AWS | Create Application LB | Wait for LB to be active
+      local_action:
+        module: elb_application_lb_facts
+        aws_access_key: "{{ aws_access_key }}"
+        aws_secret_key: "{{ aws_secret_key }}"
+        region: "{{ aws_region }}"
+        names:
+          - "{{ aws_lb_name }}"
+      register: foo
+      until: foo.load_balancers[0]['state']['code'] == 'active'
+      retries: 60
+      delay: 5
