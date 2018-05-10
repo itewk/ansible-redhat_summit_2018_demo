@@ -15,7 +15,7 @@
         - name: Create Static IP Routes | Live IP Route
           command: "ip route add {{ item }} dev {{ vm_network_ifname }}"
           register: ip_route_add_result
-          failed_when: 'ip_route_add_result.rc != 0 and !(ip_route_add_result.stderr =~ "RTNETLINK answers: File exists"'
+          failed_when: 'ip_route_add_result.rc != 0 and not (ip_route_add_result.stderr =~ "RTNETLINK answers: File exists"'
           with_items: "{{ static_ip_routes }}"
 
         - name: Create Static IP Routes | Permanent IP Route
