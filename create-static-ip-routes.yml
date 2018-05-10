@@ -4,7 +4,7 @@
     - block:
         - name: Create Static IP Routes | Live IP Route
           command: "ip route add {{ item }}"
-          with_items: "{{ static_ip_routes }"
+          with_items: "{{ static_ip_routes }}"
 
         - name: Create Static IP Routes | Permanent IP Route
           lineinfile:
@@ -12,5 +12,5 @@
             state: present
             create: True
             line: "{{ item }}"
-          with_items: "{{ static_ip_routes }"
+          with_items: "{{ static_ip_routes }}"
       when: static_ip_routes is defined
