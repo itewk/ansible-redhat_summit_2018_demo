@@ -2,8 +2,18 @@
   hosts: all
   tasks:
     - block:
+        - name: Create Static IP Routes | Set VMware vCenter VM network interface name
+          set_fact:
+            vm_network_ifname: "{{ vm_network_ifname | default('ens192') }}"
+          when: ansible_virtualization_type == "VMware"
+
+        - name: Create Static IP Routes | Set RHV VM network interface name
+          set_fact:
+            vm_network_ifname: "{{ vm_network_ifname | default('eth0') }}"
+          when: ansible_virtualization_type == "RHEV"
+
         - name: Create Static IP Routes | Live IP Route
-          command: "ip route add {{ item }}"
+          command: "ip route add {{ item }} dev {{ vm_network_ifname }}"
           with_items: "{{ static_ip_routes }}"
 
         - name: Create Static IP Routes | Permanent IP Route
@@ -11,6 +21,6 @@
             path: "/etc/sysconfig/network-scripts/route-eth0"
             state: present
             create: True
-            line: "{{ item }}"
+            line: "{{ item }} dev {{ vm_network_ifname }}"
           with_items: "{{ static_ip_routes }}"
       when: static_ip_routes is defined
