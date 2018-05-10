@@ -1,11 +1,10 @@
 ---
-- name: AWS | Create Application LB
-  gather_facts: False
-  hosts: localhost
+- name: AWS | Create Application LB | Setup
+  gather_facts: True
+  hosts: all
   tasks:
-    - name: AWS | Create Application LB | Verify parameters
-      local_action:
-        module: assert
+    - name: AWS | Create Application LB | Setup | Verify parameters
+      assert:
         that:
           - aws_region is defined
           - aws_access_key is defined
@@ -13,53 +12,78 @@
           - aws_vpc_id is defined
           - service_name is defined
 
-    - name: AWS | Create Application LB | Set facts
+    - name: AWS | Create Application LB | Setup | Set facts
       set_fact:
         aws_lb_name: "{{ service_name | regex_replace('[^a-zA-Z0-9-]', '-') }}"
         aws_target_group_name: "{{ service_name | regex_replace('[^a-zA-Z0-9-]', '-') }}"
 
-    - name: AWS | Create Application LB | Create Target Group
-      local_action:
-        module: elb_target_group
-        aws_access_key: "{{ aws_access_key }}"
-        aws_secret_key: "{{ aws_secret_key }}"
-        region: "{{ aws_region }}"
-        vpc_id: "{{ aws_vpc_id }}"
-        name: "{{ aws_target_group_name }}"
-        protocol: http
-        port: 80
-        target_type: ip
-        state: present
+- name: AWS | Create Application LB
+  gather_facts: True
+  hosts: all
+  tasks:
+    - block:
+        - name: AWS | Create Application LB | Create Target Group
+          elb_target_group:
+            aws_access_key: "{{ aws_access_key }}"
+            aws_secret_key: "{{ aws_secret_key }}"
+            region: "{{ aws_region }}"
+            vpc_id: "{{ aws_vpc_id }}"
+            name: "{{ aws_target_group_name }}"
+            protocol: http
+            port: 80
+            target_type: ip
+            state: present
 
-    - name: AWS | Create Application LB | Create LB
-      local_action:
-        module: elb_application_lb
-        aws_access_key: "{{ aws_access_key }}"
-        aws_secret_key: "{{ aws_secret_key }}"
-        region: "{{ aws_region }}"
-        name: "{{ aws_lb_name }}"
-        security_groups:
-          - http
-        subnets:
-          - subnet-00ba5573e47c9325a
-          - subnet-06cfe7f030c32f644
-        listeners:
-          - Protocol: HTTP
-            Port: 80
-            DefaultActions:
-              - Type: forward
-                TargetGroupName: "{{ aws_target_group_name }}"
-        state: present
+        - name: AWS | Create Application LB | Create LB
+          elb_application_lb:
+            aws_access_key: "{{ aws_access_key }}"
+            aws_secret_key: "{{ aws_secret_key }}"
+            region: "{{ aws_region }}"
+            name: "{{ aws_lb_name }}"
+            security_groups:
+              - http
+            subnets:
+              - subnet-00ba5573e47c9325a
+              - subnet-06cfe7f030c32f644
+            listeners:
+              - Protocol: HTTP
+                Port: 80
+                DefaultActions:
+                  - Type: forward
+                    TargetGroupName: "{{ aws_target_group_name }}"
+            state: present
 
-    - name: AWS | Create Application LB | Wait for LB to be active
-      local_action:
-        module: elb_application_lb_facts
+        - name: AWS | Create Application LB | Wait for LB to be active
+          elb_application_lb_facts:
+            aws_access_key: "{{ aws_access_key }}"
+            aws_secret_key: "{{ aws_secret_key }}"
+            region: "{{ aws_region }}"
+            names:
+              - "{{ aws_lb_name }}"
+          register: foo
+          until: foo.load_balancers[0]['state']['code'] == 'active'
+          retries: 60
+          delay: 5
+      run_once: True
+      delegate_to: localhost
+
+- name: AWS | Create Application LB | Add hosts
+  gather_facts: True
+  hosts: all
+  tasks:
+    - name: AWS | Create Application LB | Add hosts | Set avalability zone for non AWS hosts
+      set_fact:
+        aws_target_az: all
+      when: inventory_hostname not in groups['foreman_location_aws_us_east_1']
+
+    - name: AWS | Create Application LB | Add hosts
+      elb_target:
         aws_access_key: "{{ aws_access_key }}"
         aws_secret_key: "{{ aws_secret_key }}"
         region: "{{ aws_region }}"
-        names:
-          - "{{ aws_lb_name }}"
-      register: foo
-      until: foo.load_balancers[0]['state']['code'] == 'active'
-      retries: 60
-      delay: 5
+        target_group_name: "{{ aws_target_group_name }}"
+        target_id: "{{ ansible_default_ipv4['address'] }}"
+        state: present
+        target_az: "{{ aws_target_az | default() }}"
+      delegate_to: localhost
+      connection: local

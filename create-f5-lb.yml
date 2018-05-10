@@ -1,0 +1,44 @@
+---
+- name: F5 | Create Application LB
+  hosts: all
+  vars:
+    f5_user: ansible
+    f5_password: NAPSR0cks!
+    f5_server: f5.aws-itewk.rhc-lab.iad.redhat.com
+    f5_server_port: 8443
+    service_name: "Hello Summit 1"
+  tasks:
+    - name: F5 | Create Application LB | Set Facts
+      set_fact:
+        f5_pool_name: "{{ service_name | regex_replace('[^a-zA-Z0-9-]', '-') }}"
+
+    - name: F5 | Create Application LB | Create pool
+      bigip_pool:
+        server: "{{ f5_server }}"
+        server_port: "{{ f5_server_port }}"
+        user: "{{ f5_user }}"
+        password: "{{ f5_password }}"
+        validate_certs: False
+        state: present
+        name: "{{ f5_pool_name }}"
+        partition: Common
+        lb_method: least-connections-member
+        slow_ramp_time: 120
+        monitors:
+          - http
+      delegate_to: localhost
+      run_once: True
+
+    - name: F5 | Create Application LB | Add pool memebers
+      bigip_pool_member:
+        server: "{{ f5_server }}"
+        server_port: "{{ f5_server_port }}"
+        user: "{{ f5_user }}"
+        password: "{{ f5_password }}"
+        validate_certs: False
+        state: present
+        pool: "{{ f5_pool_name }}"
+        partition: Common
+        host: "{{ ansible_default_ipv4['address'] }}"
+        port: 80
+      delegate_to: localhost
