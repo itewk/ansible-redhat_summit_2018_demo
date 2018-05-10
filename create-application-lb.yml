@@ -13,15 +13,6 @@
           - aws_vpc_id is defined
           - service_name is defined
 
-    - name: AWS | Create Application LB | Install required modules
-      local_action:
-        module: pip
-        name: "{{ item }}"
-        state: latest
-      with_items:
-        - boto3
-        - botocore
-
     - name: AWS | Create Application LB | Set facts
       set_fact:
         aws_lb_name: "{{ service_name | regex_replace('[^a-zA-Z0-9-]', '-') }}"
